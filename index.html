@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OCR Extraction Frontend</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          Inter,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      body {
+        margin: 0;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        color: #e2e8f0;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px 20px 60px;
+      }
+
+      .card {
+        background: rgba(15, 23, 42, 0.86);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 18px;
+        padding: 24px;
+        box-shadow: 0 18px 50px rgba(2, 8, 23, 0.35);
+      }
+
+      h1 {
+        margin-top: 0;
+        margin-bottom: 8px;
+      }
+
+      .subtitle {
+        color: #94a3b8;
+        margin-bottom: 20px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 20px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
+
+      input,
+      select,
+      button,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #475569;
+        background: #020617;
+        color: #f8fafc;
+        font-size: 15px;
+      }
+
+      button {
+        cursor: pointer;
+        background: linear-gradient(135deg, #2563eb, #06b6d4);
+        border: none;
+        font-weight: 700;
+        transition: transform 0.15s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0 16px;
+      }
+
+      .preview {
+        width: 100%;
+        max-height: 320px;
+        object-fit: contain;
+        border-radius: 12px;
+        border: 1px solid #334155;
+        background: #020617;
+        margin-top: 12px;
+        display: none;
+      }
+
+      .status {
+        margin-top: 14px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        min-height: 20px;
+        background: #0f172a;
+        color: #cbd5e1;
+      }
+
+      .status.success {
+        color: #bbf7d0;
+        border: 1px solid rgba(74, 222, 128, 0.3);
+      }
+
+      .status.error {
+        color: #fecaca;
+        border: 1px solid rgba(248, 113, 113, 0.3);
+      }
+
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #020617;
+        border: 1px solid #334155;
+        padding: 14px;
+        border-radius: 12px;
+        margin-top: 14px;
+        max-height: 320px;
+        overflow: auto;
+      }
+
+      .meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+        color: #cbd5e1;
+      }
+
+      .meta div {
+        background: rgba(30, 41, 59, 0.75);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      @media (max-width: 780px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .row,
+        .meta {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>OCR Extraction UI</h1>
+        <p class="subtitle">
+          Upload an image and extract text with your FastAPI OCR backend.
+        </p>
+
+        <div class="grid">
+          <form id="ocrForm">
+            <div class="row">
+              <div>
+                <label for="apiUrl">API Base URL</label>
+                <input id="apiUrl" type="text" value="http://127.0.0.1:8000" />
+              </div>
+              <div>
+                <label for="fileInput">Image file</label>
+                <input id="fileInput" type="file" accept="image/*" required />
+              </div>
+            </div>
+
+            <div class="row">
+              <div>
+                <label for="lang">Language</label>
+                <select id="lang"></select>
+              </div>
+              <div>
+                <label for="preprocessing">Preprocessing</label>
+                <select id="preprocessing">
+                  <option value="auto">auto</option>
+                  <option value="none">none</option>
+                  <option value="document">document</option>
+                  <option value="low_quality">low_quality</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="checkbox-row">
+              <input id="includeWordBoxes" type="checkbox" />
+              <label for="includeWordBoxes" style="margin: 0"
+                >Include word boxes</label
+              >
+            </div>
+
+            <button type="submit">Extract text</button>
+            <div id="status" class="status">Waiting for input…</div>
+          </form>
+
+          <div>
+            <label>Preview</label>
+            <img id="preview" class="preview" alt="Selected image preview" />
+          </div>
+        </div>
+
+        <div id="result" style="display: none; margin-top: 20px">
+          <h3>Result</h3>
+          <div class="meta">
+            <div><strong>Filename:</strong> <span id="filename">-</span></div>
+            <div><strong>Status:</strong> <span id="resultStatus">-</span></div>
+            <div><strong>Language:</strong> <span id="resultLang">-</span></div>
+            <div>
+              <strong>Confidence:</strong> <span id="resultConfidence">-</span>
+            </div>
+            <div>
+              <strong>Word count:</strong> <span id="resultWords">-</span>
+            </div>
+            <div>
+              <strong>Processing time:</strong> <span id="resultTime">-</span>
+            </div>
+          </div>
+          <pre id="extractedText">No text yet.</pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById("ocrForm");
+      const apiUrlInput = document.getElementById("apiUrl");
+      const fileInput = document.getElementById("fileInput");
+      const langSelect = document.getElementById("lang");
+      const preprocessingSelect = document.getElementById("preprocessing");
+      const includeWordBoxesInput = document.getElementById("includeWordBoxes");
+      const preview = document.getElementById("preview");
+      const status = document.getElementById("status");
+      const resultBox = document.getElementById("result");
+      const filenameEl = document.getElementById("filename");
+      const resultStatusEl = document.getElementById("resultStatus");
+      const resultLangEl = document.getElementById("resultLang");
+      const resultConfidenceEl = document.getElementById("resultConfidence");
+      const resultWordsEl = document.getElementById("resultWords");
+      const resultTimeEl = document.getElementById("resultTime");
+      const extractedTextEl = document.getElementById("extractedText");
+
+      function setStatus(message, type = "") {
+        status.textContent = message;
+        status.className = `status ${type}`.trim();
+      }
+
+      function setResult(data) {
+        resultBox.style.display = "block";
+        filenameEl.textContent = data.filename || "-";
+        resultStatusEl.textContent = data.success ? "Success" : "Failed";
+        resultLangEl.textContent = data.language || "-";
+        resultConfidenceEl.textContent =
+          data.average_confidence != null ? `${data.average_confidence}` : "-";
+        resultWordsEl.textContent =
+          data.word_count != null ? `${data.word_count}` : "-";
+        resultTimeEl.textContent =
+          data.processing_time_ms != null
+            ? `${data.processing_time_ms} ms`
+            : "-";
+        extractedTextEl.textContent =
+          data.extracted_text || data.error || "No text returned.";
+      }
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          preview.src = e.target.result;
+          preview.style.display = "block";
+        };
+        reader.readAsDataURL(file);
+      });
+
+      async function loadLanguages() {
+        const baseUrl = apiUrlInput.value.trim().replace(/\/$/, "");
+        const fallbackLang = "eng";
+        langSelect.innerHTML = "";
+
+        const addOption = (code, label) => {
+          const option = document.createElement("option");
+          option.value = code;
+          option.textContent = label;
+          langSelect.appendChild(option);
+        };
+
+        try {
+          const response = await fetch(`${baseUrl}/api/v1/ocr/languages`);
+          if (!response.ok) throw new Error("Unable to load languages");
+          const data = await response.json();
+          const defaultLang = data.default_language || fallbackLang;
+          data.available_languages?.forEach((item) => {
+            addOption(item.code, `${item.name} (${item.code})`);
+          });
+          if (!langSelect.value) {
+            addOption(defaultLang, defaultLang);
+          }
+          langSelect.value = langSelect.querySelector(
+            `[value="${defaultLang}"]`,
+          )
+            ? defaultLang
+            : fallbackLang;
+          setStatus(`Connected to ${baseUrl}`);
+        } catch (error) {
+          addOption(fallbackLang, fallbackLang);
+          langSelect.value = fallbackLang;
+          setStatus(
+            `Tesseract language list unavailable: using ${fallbackLang}. ${error.message}`,
+            "error",
+          );
+        }
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const baseUrl = apiUrlInput.value.trim().replace(/\/$/, "");
+        const file = fileInput.files?.[0];
+        if (!file) {
+          setStatus("Please choose an image file.", "error");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const params = new URLSearchParams({
+          lang: langSelect.value,
+          preprocessing: preprocessingSelect.value,
+          include_word_boxes: includeWordBoxesInput.checked ? "true" : "false",
+        });
+
+        try {
+          setStatus("Uploading and processing image…");
+          const response = await fetch(
+            `${baseUrl}/api/v1/ocr/extract?${params.toString()}`,
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "OCR request failed");
+          }
+
+          setResult(data);
+          if (data.success) {
+            setStatus("OCR completed successfully.", "success");
+          } else {
+            setStatus(data.error || "OCR request failed.", "error");
+          }
+        } catch (error) {
+          setStatus(error.message, "error");
+          resultBox.style.display = "block";
+          filenameEl.textContent = file.name;
+          resultStatusEl.textContent = "Error";
+          resultLangEl.textContent = langSelect.value;
+          resultConfidenceEl.textContent = "-";
+          resultWordsEl.textContent = "-";
+          resultTimeEl.textContent = "-";
+          extractedTextEl.textContent = error.message;
+        }
+      });
+
+      apiUrlInput.addEventListener("change", loadLanguages);
+      loadLanguages();
+    </script>
+  </body>
+</html>

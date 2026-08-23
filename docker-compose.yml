@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  ocr-api:
+    build: .
+    container_name: ocr-extraction-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MAX_FILE_SIZE_MB=10
+      - DEFAULT_OCR_LANGUAGE=eng
+      - MAX_BATCH_FILES=10
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/ocr/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
