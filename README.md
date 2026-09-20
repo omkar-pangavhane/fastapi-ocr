@@ -1,106 +1,556 @@
-# OCR Extraction API
+# 🔍 OCR Extraction API
 
-A production-ready FastAPI service for extracting text from images using Tesseract OCR, with an OpenCV/Pillow preprocessing pipeline, multi-language support, and batch processing.
+> **Production-ready OCR REST API built with FastAPI and Tesseract OCR for extracting text from images with preprocessing, multi-language support, confidence scoring, and batch processing.**
 
-## Features
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python\&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi\&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Tesseract](https://img.shields.io/badge/Tesseract-OCR-4285F4)](https://github.com/tesseract-ocr/tesseract)
+[![OpenCV](https://img.shields.io/badge/OpenCV-Image%20Processing-5C3EE8?logo=opencv)](https://opencv.org/)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker\&logoColor=white)](https://www.docker.com/)
+[![Pytest](https://img.shields.io/badge/Tests-Pytest-0A9EDC?logo=pytest)](https://pytest.org/)
 
-- **Multi-format uploads**: JPG, JPEG, PNG, TIFF, BMP
-- **10MB file size limit** (configurable) with strict validation (extension, MIME, magic-byte image verification)
-- **Image preprocessing**: grayscale, denoising, adaptive/Otsu thresholding, auto-upscaling of small images
-- **Multi-language OCR**: any language pack installed on the Tesseract binary (English, Spanish, French, German, Hindi, Marathi, etc. — combine with `eng+fra`)
-- **Confidence scoring**: per-word and average confidence, optional bounding boxes
-- **Batch processing**: OCR multiple images in one request, with per-file success/failure isolation
-- **Robust error handling**: typed exceptions → correct HTTP status codes (415, 413, 422, etc.)
-- **Async endpoints**: OCR runs in a threadpool so the event loop stays responsive
-- **Dockerized**: `Dockerfile` + `docker-compose.yml` included
+---
 
-## Project Structure
+## 📌 Overview
 
+**OCR Extraction API** is a RESTful OCR service that converts text from images into structured JSON responses.
+
+The API combines:
+
+* **FastAPI** for high-performance REST endpoints
+* **Tesseract OCR** for text recognition
+* **OpenCV + Pillow** for image preprocessing
+* **Pydantic** for request/response validation
+* **Docker** for reproducible deployment
+* **Pytest** for automated testing
+
+The service is designed with production-oriented concerns such as file validation, image verification, configurable limits, error handling, asynchronous execution, batch processing, and health checks.
+
+---
+
+## 🖼️ Screenshots
+
+### Swagger API Documentation
+
+![Swagger API Documentation](docs/images/swagger-ui.png)
+
+### OCR Extraction
+
+![OCR Extraction](docs/images/ocr-extraction.png)
+
+### OCR Response
+
+![OCR JSON Response](docs/images/ocr-response.png)
+
+> **Note:** Add your screenshots to `docs/images/` using the filenames above.
+
+Recommended screenshots:
+
+```text
+docs/
+└── images/
+    ├── swagger-ui.png
+    ├── ocr-extraction.png
+    └── ocr-response.png
 ```
-ocr-api/
+
+---
+
+## ✨ Features
+
+### 📁 Multi-format Image Upload
+
+Supports common image formats:
+
+* JPG
+* JPEG
+* PNG
+* TIFF
+* BMP
+
+### 🔐 Strict File Validation
+
+Uploaded files are validated using multiple layers:
+
+* File extension validation
+* MIME type validation
+* File size validation
+* Actual image verification using `Pillow.Image.verify()`
+* Protection against files disguised with incorrect extensions
+
+Default maximum file size:
+
+```text
+10 MB
+```
+
+The limit can be configured through environment variables.
+
+---
+
+### 🧠 Image Preprocessing
+
+The API provides multiple preprocessing strategies to improve OCR quality.
+
+Supported modes:
+
+| Mode          | Processing                        | Recommended For               |
+| ------------- | --------------------------------- | ----------------------------- |
+| `none`        | No preprocessing                  | Clean digital images          |
+| `auto`        | Grayscale + Otsu + upscaling      | General OCR                   |
+| `document`    | Grayscale + adaptive thresholding | Scanned documents             |
+| `low_quality` | Denoising + adaptive thresholding | Noisy / low-resolution images |
+
+Processing pipeline:
+
+```text
+Input Image
+     │
+     ▼
+Image Validation
+     │
+     ▼
+Pillow / OpenCV
+     │
+     ├── Grayscale
+     ├── Denoising
+     ├── Thresholding
+     └── Upscaling
+     │
+     ▼
+Preprocessed Image
+     │
+     ▼
+Tesseract OCR
+     │
+     ▼
+Structured JSON Response
+```
+
+---
+
+### 🌍 Multi-language OCR
+
+The API supports any language installed in the Tesseract environment.
+
+Examples:
+
+```text
+eng
+spa
+fra
+deu
+hin
+mar
+```
+
+Multiple languages can also be combined:
+
+```text
+eng+fra
+eng+hin
+eng+mar
+```
+
+Check installed languages:
+
+```http
+GET /api/v1/ocr/languages
+```
+
+This endpoint dynamically reports the language packs installed on the server.
+
+---
+
+### 📊 Confidence Scoring
+
+OCR responses include:
+
+* Average confidence
+* Word count
+* Optional per-word confidence
+* Optional bounding boxes
+
+Example:
+
+```json
+{
+  "average_confidence": 91.42,
+  "word_count": 38
+}
+```
+
+When requested, individual words can include their coordinates and confidence values.
+
+---
+
+### 📦 Batch OCR Processing
+
+Process multiple images in a single request:
+
+```http
+POST /api/v1/ocr/extract-batch
+```
+
+Each file is processed independently.
+
+Therefore:
+
+```text
+File 1 → Success
+File 2 → Success
+File 3 → Failed
+File 4 → Success
+```
+
+A failure in one file does not cause the entire batch request to fail.
+
+---
+
+### ⚡ Async API Execution
+
+OCR is CPU-intensive, so Tesseract execution is moved to a threadpool.
+
+This prevents long-running OCR operations from blocking the FastAPI event loop.
+
+Conceptually:
+
+```text
+HTTP Request
+     │
+     ▼
+FastAPI Event Loop
+     │
+     ▼
+Threadpool
+     │
+     ▼
+Tesseract OCR
+     │
+     ▼
+JSON Response
+```
+
+---
+
+### 🐳 Docker Support
+
+The project includes:
+
+```text
+Dockerfile
+docker-compose.yml
+```
+
+Docker packages the application together with its required Tesseract environment, making deployment more reproducible.
+
+---
+
+## 🏗️ Architecture
+
+```text
+                         ┌──────────────────────┐
+                         │       Client         │
+                         │ Browser / Postman    │
+                         │ / Frontend / cURL    │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │      FastAPI         │
+                         │    REST API Layer    │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │   File Validation    │
+                         │ Extension / MIME /   │
+                         │ Size / Image Verify  │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │ Image Preprocessing  │
+                         │ Pillow + OpenCV      │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │    Tesseract OCR     │
+                         │ Text Recognition     │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │ OCR Result Processing│
+                         │ Confidence / Words / │
+                         │ Bounding Boxes       │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │    JSON Response     │
+                         └──────────────────────┘
+```
+
+---
+
+## 📂 Project Structure
+
+```text
+fastapi-ocr/
+│
 ├── app/
-│   ├── main.py                  # FastAPI app, middleware, exception handlers
-│   ├── api/v1/ocr.py             # Route handlers
+│   ├── main.py
+│   │
+│   ├── api/
+│   │   └── v1/
+│   │       └── ocr.py
+│   │
 │   ├── core/
-│   │   ├── config.py             # Settings (env-driven)
-│   │   └── exceptions.py         # Custom exceptions + handler
-│   ├── models/schemas.py         # Pydantic request/response models
+│   │   ├── config.py
+│   │   └── exceptions.py
+│   │
+│   ├── models/
+│   │   └── schemas.py
+│   │
 │   ├── services/
-│   │   ├── ocr_service.py        # pytesseract wrapper, confidence parsing
-│   │   └── preprocessing.py      # OpenCV preprocessing pipeline
-│   └── utils/validators.py       # Upload validation, safe image loading
-├── tests/test_ocr_api.py         # Pytest suite (8 tests, self-contained)
-├── requirements.txt
+│   │   ├── ocr_service.py
+│   │   └── preprocessing.py
+│   │
+│   └── utils/
+│       └── validators.py
+│
+├── tests/
+│   └── test_ocr_api.py
+│
+├── docs/
+│   └── images/
+│       ├── swagger-ui.png
+│       ├── ocr-extraction.png
+│       └── ocr-response.png
+│
+├── .env.example
+├── .gitignore
 ├── Dockerfile
 ├── docker-compose.yml
-└── .env.example
+├── requirements.txt
+└── README.md
 ```
 
-## Setup
+---
 
-### 1. Install Tesseract OCR (system dependency)
+# 🚀 Getting Started
 
-**Ubuntu/Debian:**
+## Prerequisites
+
+Make sure you have:
+
+* Python 3.10+
+* Tesseract OCR
+* pip
+* Git
+
+Docker can be used instead of installing Tesseract locally.
+
+---
+
+## 1. Install Tesseract OCR
+
+### Ubuntu / Debian
+
 ```bash
 sudo apt-get update
-sudo apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-spa tesseract-ocr-fra tesseract-ocr-deu tesseract-ocr-hin tesseract-ocr-mar
+
+sudo apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-spa \
+    tesseract-ocr-fra \
+    tesseract-ocr-deu \
+    tesseract-ocr-hin \
+    tesseract-ocr-mar
 ```
 
-**macOS:**
+### macOS
+
 ```bash
-brew install tesseract tesseract-lang
+brew install tesseract
+brew install tesseract-lang
 ```
 
-**Windows:** download the installer from the [UB-Mannheim Tesseract build](https://github.com/UB-Mannheim/tesseract/wiki), then set `TESSERACT_CMD` in `.env` to the full path of `tesseract.exe`.
+### Windows
 
-### 2. Install Python dependencies
+Install Tesseract using a Windows-compatible Tesseract distribution.
+
+Then configure:
+
+```env
+TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
+```
+
+---
+
+# 🐍 Python Setup
+
+## 2. Clone the Repository
+
+```bash
+git clone <your-repository-url>
+
+cd fastapi-ocr
+```
+
+---
+
+## 3. Create Virtual Environment
+
+### Windows
 
 ```bash
 python -m venv venv
-source venv/bin/activate   # venv\Scripts\activate on Windows
+
+venv\Scripts\activate
+```
+
+### Linux / macOS
+
+```bash
+python3 -m venv venv
+
+source venv/bin/activate
+```
+
+---
+
+## 4. Install Dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure environment
+---
+
+## 5. Configure Environment Variables
+
+Create `.env` from the example:
+
+### Linux / macOS
 
 ```bash
 cp .env.example .env
-# edit .env if needed (e.g. TESSERACT_CMD on Windows)
 ```
 
-### 4. Run
+### Windows
+
+```powershell
+copy .env.example .env
+```
+
+Example:
+
+```env
+MAX_FILE_SIZE_MB=10
+
+ALLOWED_EXTENSIONS=jpg,jpeg,png,tiff,tif,bmp
+
+TESSERACT_CMD=
+
+DEFAULT_OCR_LANGUAGE=eng
+
+MAX_BATCH_FILES=10
+
+CORS_ORIGINS=*
+```
+
+---
+
+# ▶️ Run the API
+
+Start the development server:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-API docs: http://127.0.0.1:8000/docs (Swagger) or http://127.0.0.1:8000/redoc
+The API will be available at:
 
-### Docker (alternative — bundles Tesseract, no local install needed)
+```text
+http://127.0.0.1:8000
+```
+
+---
+
+## 📚 API Documentation
+
+### Swagger UI
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+### ReDoc
+
+```text
+http://127.0.0.1:8000/redoc
+```
+
+Swagger provides an interactive interface for testing the OCR endpoints directly from the browser.
+
+---
+
+# 🐳 Docker Setup
+
+Docker provides an alternative setup that bundles the required OCR environment.
+
+Build and start:
 
 ```bash
 docker-compose up --build
 ```
 
-## API Reference
+Run in detached mode:
 
-### `POST /api/v1/ocr/extract`
-Upload a single image and get extracted text back.
-
-**Query params:**
-| Param | Default | Description |
-|---|---|---|
-| `lang` | `eng` | Tesseract language code(s), e.g. `eng`, `spa`, `eng+fra` |
-| `preprocessing` | `auto` | `none`, `auto`, `document`, `low_quality` |
-| `include_word_boxes` | `false` | Include per-word bounding boxes + confidence |
-
-**Example:**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/ocr/extract?lang=eng&preprocessing=auto" \
-  -F "file=@invoice.jpg"
+docker-compose up -d --build
 ```
 
-**Response:**
+Stop containers:
+
+```bash
+docker-compose down
+```
+
+---
+
+# 🔌 API Reference
+
+## 1. Extract Text
+
+```http
+POST /api/v1/ocr/extract
+```
+
+Extract text from a single image.
+
+### Query Parameters
+
+| Parameter            | Default | Description                            |
+| -------------------- | ------- | -------------------------------------- |
+| `lang`               | `eng`   | Tesseract language code                |
+| `preprocessing`      | `auto`  | Preprocessing strategy                 |
+| `include_word_boxes` | `false` | Return word-level boxes and confidence |
+
+### cURL
+
+```bash
+curl -X POST \
+"http://localhost:8000/api/v1/ocr/extract?lang=eng&preprocessing=auto" \
+-F "file=@invoice.jpg"
+```
+
+### Example Response
+
 ```json
 {
   "filename": "invoice.jpg",
@@ -116,66 +566,379 @@ curl -X POST "http://localhost:8000/api/v1/ocr/extract?lang=eng&preprocessing=au
 }
 ```
 
-### `POST /api/v1/ocr/extract-batch`
-Same as above but accepts multiple files (`files` field, repeated). One failing file does not fail the whole batch — check `results[i].success`.
+---
+
+# 📦 Batch OCR
+
+```http
+POST /api/v1/ocr/extract-batch
+```
+
+Process multiple images in one request.
+
+### Example
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/ocr/extract-batch" \
-  -F "files=@page1.png" -F "files=@page2.png" -F "files=@page3.png"
+curl -X POST \
+"http://localhost:8000/api/v1/ocr/extract-batch" \
+-F "files=@page1.png" \
+-F "files=@page2.png" \
+-F "files=@page3.png"
 ```
 
-### `GET /api/v1/ocr/languages`
-Returns Tesseract language packs actually installed on the server (not a hardcoded list), so you always know what's usable.
+Each file produces an independent result.
 
-### `GET /api/v1/ocr/health`
-Checks that the Tesseract binary is reachable and returns its version — use this for container/readiness probes.
+---
 
-## Preprocessing Modes
+# 🌍 Available Languages
 
-| Mode | What it does | Best for |
-|---|---|---|
-| `none` | No preprocessing, raw image sent to Tesseract | Already-clean digital screenshots |
-| `auto` | Grayscale + Otsu thresholding + upscale if small | General purpose (default) |
-| `document` | Grayscale + adaptive thresholding | Scanned documents with uneven lighting |
-| `low_quality` | Denoise + adaptive thresholding | Photos of text, noisy/low-res images |
+```http
+GET /api/v1/ocr/languages
+```
 
-## Error Handling
+Returns the Tesseract language packs installed on the server.
 
-All errors return a consistent JSON shape:
+Example:
+
 ```json
-{ "success": false, "error": "description", "path": "/api/v1/ocr/extract" }
+{
+  "languages": [
+    "eng",
+    "fra",
+    "deu",
+    "hin",
+    "mar"
+  ]
+}
 ```
 
-| Status | Meaning |
-|---|---|
-| 400 | Empty file, unsupported language, too many batch files |
-| 413 | File exceeds `MAX_FILE_SIZE_MB` |
-| 415 | Unsupported file extension/type |
-| 422 | File isn't a valid/readable image |
-| 500 | Tesseract engine failure |
+This avoids relying on a hardcoded language list.
 
-## Testing
+---
+
+# ❤️ Health Check
+
+```http
+GET /api/v1/ocr/health
+```
+
+The health endpoint verifies that the Tesseract OCR engine is reachable and returns its version.
+
+Useful for:
+
+* Docker health checks
+* Kubernetes readiness probes
+* Monitoring
+* Deployment verification
+
+---
+
+# 🧪 Testing
+
+Run the test suite:
 
 ```bash
 pytest tests/ -v
 ```
 
-The test suite generates its own synthetic test images with PIL, so it has no external file dependencies and runs anywhere Tesseract is installed.
+The test suite generates synthetic test images using Pillow, so external image files are not required.
 
-## Configuration (`.env`)
+Example:
 
-| Variable | Default | Description |
-|---|---|---|
-| `MAX_FILE_SIZE_MB` | `10` | Per-file upload limit |
-| `ALLOWED_EXTENSIONS` | `jpg,jpeg,png,tiff,tif,bmp` | Accepted extensions |
-| `TESSERACT_CMD` | *(empty)* | Path to tesseract binary (needed on Windows) |
-| `DEFAULT_OCR_LANGUAGE` | `eng` | Default `lang` query value |
-| `MAX_BATCH_FILES` | `10` | Max files per batch request |
-| `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
+```text
+tests/test_ocr_api.py
 
-## Notes on Production Hardening
+✓ Image upload validation
+✓ Invalid image handling
+✓ File size validation
+✓ OCR extraction
+✓ Language validation
+✓ Batch processing
+✓ Health endpoint
+✓ Error handling
+```
 
-- Uploads are verified as genuine images (`Image.verify()`) before processing, not just trusted by extension — protects against disguised/malicious files.
-- OCR runs via `run_in_threadpool` so CPU-bound Tesseract calls don't block the async event loop.
-- Batch endpoint processes files concurrently and isolates per-file failures.
-- For heavy production load, consider adding a task queue (Celery/RQ) for batch jobs, rate limiting, and an API key/auth layer — not included here to keep the service dependency-light, but the router structure makes it straightforward to add.
+---
+
+# ⚠️ Error Handling
+
+The API uses consistent JSON error responses.
+
+Example:
+
+```json
+{
+  "success": false,
+  "error": "description",
+  "path": "/api/v1/ocr/extract"
+}
+```
+
+### HTTP Status Codes
+
+| Status | Meaning                                              |
+| ------ | ---------------------------------------------------- |
+| `400`  | Invalid request / unsupported language / batch limit |
+| `413`  | File exceeds configured size limit                   |
+| `415`  | Unsupported file type                                |
+| `422`  | Invalid or unreadable image                          |
+| `500`  | Tesseract OCR engine failure                         |
+
+---
+
+# ⚙️ Configuration
+
+Configuration is environment-driven through `.env`.
+
+| Variable               |                     Default | Description                    |
+| ---------------------- | --------------------------: | ------------------------------ |
+| `MAX_FILE_SIZE_MB`     |                        `10` | Maximum size per uploaded file |
+| `ALLOWED_EXTENSIONS`   | `jpg,jpeg,png,tiff,tif,bmp` | Accepted image formats         |
+| `TESSERACT_CMD`        |                       Empty | Tesseract executable path      |
+| `DEFAULT_OCR_LANGUAGE` |                       `eng` | Default OCR language           |
+| `MAX_BATCH_FILES`      |                        `10` | Maximum files per batch        |
+| `CORS_ORIGINS`         |                         `*` | Allowed CORS origins           |
+
+---
+
+# 🔒 Production Hardening
+
+This project includes several production-oriented safeguards.
+
+### Image Verification
+
+Images are verified using Pillow rather than trusting only the filename or extension.
+
+```python
+Image.verify()
+```
+
+This helps detect files that are not actually valid images.
+
+---
+
+### Upload Restrictions
+
+Uploads are restricted using:
+
+```text
+Extension validation
+        +
+MIME validation
+        +
+File size validation
+        +
+Actual image verification
+```
+
+---
+
+### Non-blocking OCR
+
+Tesseract is CPU-intensive.
+
+OCR operations are executed through a threadpool so that long-running OCR processing does not directly block the FastAPI event loop.
+
+---
+
+### Batch Failure Isolation
+
+Each file in a batch is processed independently.
+
+A single invalid image does not invalidate successful OCR results from other files.
+
+---
+
+# 📈 Production Scaling Considerations
+
+For high-volume workloads, additional infrastructure can be introduced:
+
+```text
+                    ┌──────────────┐
+                    │   Client     │
+                    └──────┬───────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │ Load Balancer│
+                    └──────┬───────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+          FastAPI       FastAPI       FastAPI
+              │            │            │
+              └────────────┼────────────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │ Task Queue   │
+                    │ Celery / RQ  │
+                    └──────┬───────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │ OCR Workers  │
+                    │  Tesseract   │
+                    └──────────────┘
+```
+
+Potential additions:
+
+* Celery / RQ
+* Redis
+* Rate limiting
+* API authentication
+* API keys
+* Structured logging
+* Metrics
+* Distributed tracing
+* Object storage
+* Horizontal scaling
+* Kubernetes deployment
+
+These components are intentionally not included in the current implementation to keep the service lightweight and dependency-conscious.
+
+---
+
+# 🛠️ Tech Stack
+
+| Technology        | Purpose                       |
+| ----------------- | ----------------------------- |
+| **Python**        | Backend development           |
+| **FastAPI**       | REST API framework            |
+| **Tesseract OCR** | Optical character recognition |
+| **Pytesseract**   | Python wrapper for Tesseract  |
+| **OpenCV**        | Image preprocessing           |
+| **Pillow**        | Image loading and validation  |
+| **Pydantic**      | Data validation               |
+| **Pytest**        | Automated testing             |
+| **Docker**        | Containerization              |
+| **Uvicorn**       | ASGI server                   |
+
+---
+
+# 🔄 OCR Processing Flow
+
+```text
+                    Upload Image
+                         │
+                         ▼
+                  Validate Request
+                         │
+                         ▼
+                  Validate File
+                  ┌──────┴──────┐
+                  │             │
+              Valid          Invalid
+                  │             │
+                  ▼             ▼
+           Verify Image       HTTP Error
+                  │
+                  ▼
+           Preprocessing
+                  │
+        ┌─────────┼─────────┐
+        │         │         │
+     Grayscale Denoise  Threshold
+        │         │         │
+        └─────────┼─────────┘
+                  │
+                  ▼
+              Tesseract
+                  │
+                  ▼
+          Extract Text + Data
+                  │
+        ┌─────────┼─────────┐
+        │         │         │
+       Text   Confidence  Boxes
+        │         │         │
+        └─────────┼─────────┘
+                  │
+                  ▼
+             JSON Response
+```
+
+---
+
+# 📋 Example Use Cases
+
+This API can be used for:
+
+* 📄 Invoice text extraction
+* 🧾 Receipt processing
+* 🪪 Document digitization
+* 📑 Scanned document OCR
+* 🏷️ Label and packaging text extraction
+* 📷 Text extraction from photographs
+* 🌐 Multi-language document processing
+* 📦 Batch document processing
+* 🔎 Searchable document pipelines
+* 🤖 OCR preprocessing for AI/RAG systems
+
+---
+
+# 🔮 Future Improvements
+
+Potential extensions include:
+
+* [ ] JWT authentication
+* [ ] API key authentication
+* [ ] Rate limiting
+* [ ] Celery + Redis task queue
+* [ ] PostgreSQL metadata storage
+* [ ] Object storage integration
+* [ ] OCR result caching
+* [ ] Structured logging
+* [ ] Prometheus metrics
+* [ ] OpenTelemetry tracing
+* [ ] Kubernetes deployment
+* [ ] CI/CD with GitHub Actions
+* [ ] PDF OCR support
+* [ ] Multi-page document processing
+* [ ] Table extraction
+* [ ] Layout-aware OCR
+* [ ] LLM-based post-processing
+* [ ] RAG pipeline integration
+
+---
+
+# 🎯 Project Goals
+
+The primary goals of this project are:
+
+1. Build a reliable OCR REST API.
+2. Improve OCR accuracy through image preprocessing.
+3. Support multiple languages.
+4. Provide structured OCR metadata.
+5. Handle invalid uploads safely.
+6. Support batch processing.
+7. Keep the API responsive during CPU-intensive OCR operations.
+8. Make the application easy to run locally and in Docker.
+9. Follow production-oriented backend engineering practices.
+
+---
+
+# 👨‍💻 Author
+
+**Omkar Pangavhane**
+
+Software Developer focused on **Python Backend, AI, and Generative AI Engineering**.
+
+---
+
+# ⭐ If You Find This Project Useful
+
+If this project helped you understand OCR, FastAPI, image preprocessing, or backend engineering, consider giving the repository a ⭐.
+
+---
+
+## 📄 License
+
+Add your preferred license to the repository, for example:
+
+```text
+MIT License
+```
+
+See `LICENSE` for details.
